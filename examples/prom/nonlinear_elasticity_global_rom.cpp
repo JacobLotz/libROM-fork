@@ -887,12 +887,8 @@ int main(int argc, char* argv[])
 
         // Setup hyperreduction, using either EQP or sampled DOFs and a sample mesh.
 
-        /* TODO:Change after check
-        CAROM::BasisReader *readerS = NULL;
-        ParFiniteElementSpace *sp_R_space, *sp_W_space;
-        CAROM::Matrix *Bsinv = NULL;
-        CAROM::Matrix *Ssinv = NULL;
-        */
+        ParFiniteElementSpace* sp_XV_space;
+        CAROM::Matrix* Hsinv = NULL;
         const IntegrationRule *ir0 = NULL;
 
         if (ir0 == NULL)
@@ -905,79 +901,89 @@ int main(int argc, char* argv[])
             ir0 = &IntRules.Get(fe.GetGeomType(), order);
         }
 
-        vector<int> num_sample_dofs_per_proc(num_procs);
-
-        if (num_samples_req != -1)
+        if (use_eqp)
         {
-            nsamp_H = num_samples_req;
-        }
-        else
-        {
-            nsamp_H = hdim;
-        }
+            // EQP setup
+            eqpSol = new CAROM::Vector(ir0->GetNPoints() * fespace.GetNE(), true);
+            SetupEQP_snapshots(ir0, myid, &fespace, &W_space, nsets, BR_librom,
+                               GetSnapshotMatrix(fespace.GetTrueVSize(), nsets, max_num_snapshots, "H"),
+                               preconditionNNLS, tolNNLS, maxNNLSnnz, *eqpSol);
 
-        CAROM::Matrix* Hsinv = new CAROM::Matrix(nsamp_H, hdim, false);
-        vector<int> sample_dofs(nsamp_H);
-        if (use_sopt)
-        {
-            if (myid == 0)
-                printf("Using S_OPT sampling\n");
-            CAROM::S_OPT(H_librom,
-                         hdim,
-                         sample_dofs,
-                         num_sample_dofs_per_proc,
-                         *Hsinv,
-                         myid,
-                         num_procs,
-                         nsamp_H);
-        }
-        else if (nsamp_H != hdim)
-        {
-            if (myid == 0)
-                printf("Using GNAT sampling\n");
-            CAROM::GNAT(H_librom,
-                        hdim,
-                        sample_dofs,
-                        num_sample_dofs_per_proc,
-                        *Hsinv,
-                        myid,
-                        num_procs,
-                        nsamp_H);
-        }
-        else
-        {
-            if (myid == 0)
-                printf("Using DEIM sampling\n");
-            CAROM::DEIM(H_librom,
-                        hdim,
-                        sample_dofs,
-                        num_sample_dofs_per_proc,
-                        *Hsinv,
-                        myid,
-                        num_procs);
-        }
+            if (writeSampleMesh) WriteMeshEQP(pmesh, myid, ir0->GetNPoints(), *eqpSol);
+        }        
+            else {
+            vector<int> num_sample_dofs_per_proc(num_procs);
 
-        // Construct sample mesh
-        const int nspaces = 1;
-        std::vector<ParFiniteElementSpace*> spfespace(nspaces);
-        spfespace[0] = &fespace;
+            if (num_samples_req != -1)
+            {
+                nsamp_H = num_samples_req;
+            }
+            else
+            {
+                nsamp_H = hdim;
+            }
 
-        ParFiniteElementSpace* sp_XV_space;
+            CAROM::Matrix* Hsinv = new CAROM::Matrix(nsamp_H, hdim, false);
+            vector<int> sample_dofs(nsamp_H);
+            if (use_sopt)
+            {
+                if (myid == 0)
+                    printf("Using S_OPT sampling\n");
+                CAROM::S_OPT(H_librom,
+                            hdim,
+                            sample_dofs,
+                            num_sample_dofs_per_proc,
+                            *Hsinv,
+                            myid,
+                            num_procs,
+                            nsamp_H);
+            }
+            else if (nsamp_H != hdim)
+            {
+                if (myid == 0)
+                    printf("Using GNAT sampling\n");
+                CAROM::GNAT(H_librom,
+                            hdim,
+                            sample_dofs,
+                            num_sample_dofs_per_proc,
+                            *Hsinv,
+                            myid,
+                            num_procs,
+                            nsamp_H);
+            }
+            else
+            {
+                if (myid == 0)
+                    printf("Using DEIM sampling\n");
+                CAROM::DEIM(H_librom,
+                            hdim,
+                            sample_dofs,
+                            num_sample_dofs_per_proc,
+                            *Hsinv,
+                            myid,
+                            num_procs);
+            }
 
-        smm = new CAROM::SampleMeshManager(spfespace);
+            // Construct sample mesh
+            const int nspaces = 1;
+            std::vector<ParFiniteElementSpace*> spfespace(nspaces);
+            spfespace[0] = &fespace;
 
-        vector<int> sample_dofs_empty;
-        vector<int> num_sample_dofs_per_proc_empty;
-        num_sample_dofs_per_proc_empty.assign(num_procs, 0);
+            smm = new CAROM::SampleMeshManager(spfespace);
 
-        smm->RegisterSampledVariable("V", 0, sample_dofs,
-                                     num_sample_dofs_per_proc);
-        smm->RegisterSampledVariable("X", 0, sample_dofs,
-                                     num_sample_dofs_per_proc);
-        smm->RegisterSampledVariable("H", 0, sample_dofs,
-                                     num_sample_dofs_per_proc);
+            vector<int> sample_dofs_empty;
+            vector<int> num_sample_dofs_per_proc_empty;
+            num_sample_dofs_per_proc_empty.assign(num_procs, 0);
 
-        smm->ConstructSampleMesh();
+            smm->RegisterSampledVariable("V", 0, sample_dofs,
+                                        num_sample_dofs_per_proc);
+            smm->RegisterSampledVariable("X", 0, sample_dofs,
+                                        num_sample_dofs_per_proc);
+            smm->RegisterSampledVariable("H", 0, sample_dofs,
+                                        num_sample_dofs_per_proc);
+
+            smm->ConstructSampleMesh();
+            }
 
         w = new CAROM::Vector(rxdim + rvdim, false);
         w_v = new CAROM::Vector(rvdim, false);
@@ -993,7 +999,7 @@ int main(int argc, char* argv[])
 
         int sp_size = 0;
 
-        if (myid == 0)
+        if (myid == 0 && !use_eqp)
         {
             sp_XV_space = smm->GetSampleFESpace(0);
 
