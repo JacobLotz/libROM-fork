@@ -102,6 +102,8 @@
 using namespace std;
 using namespace mfem;
 
+#include "nonlinear_elasticity_global_rom_eqp.hpp"
+
 class ReducedSystemOperator;
 
 class HyperelasticOperator : public TimeDependentOperator
@@ -185,7 +187,7 @@ private:
     std::vector<double> eqp_rw;
     std::vector<int> eqp_qp;
     Vector eqp_coef;
-    // const bool fastIntegration = true; //TODO: implement fast integration
+    const bool fastIntegration = false; //TODO: implement fast integration
 
     int rank;
 
@@ -1097,10 +1099,17 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (myid == 0 && !use_eqp)
+        if (myid == 0)
         {
+            if (!use_eqp)
+            {
             // Define operator in sample space
             soper = new HyperelasticOperator(*sp_XV_space, ess_tdof_list_sp, visc, mu, K);
+            }
+            else
+            {
+                soper = new HyperelasticOperator(*fespace, ess_tdof_list, visc, mu, K);
+            }
         }
 
         if (hyperreduce) // TODO: ask about whether this is needed.
@@ -1733,14 +1742,17 @@ void RomOperator::Mult_Hyperreduced(const Vector &vx, Vector &dvx_dt) const
     if (eqp)
     {   // Lift v-vector and save
         V_v.mult(v_librom, *z_v_librom);
-        V_x->transposeMult(*z_v_librom, dx_dt_librom);
+        V_x.transposeMult(*z_v_librom, dx_dt_librom);
 
         Vector resEQP;
         if (fastIntegration)
             //TODO
+            {
            /*  HyperelasticNLFIntegrator_ComputeReducedEQP_Fast(&(fom->fespace), eqp_qp,
                                                              ir_eqp, &a_coeff,
                                                              x_librom, eqp_coef, resEQP); */
+            }
+
         else
             HyperelasticNLFIntegrator_ComputeReducedEQP(&(fom->fespace), eqp_rw,
                                                         eqp_qp, ir_eqp, &a_coeff,
