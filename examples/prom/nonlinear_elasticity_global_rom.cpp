@@ -1116,7 +1116,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (hyperreduce) // TODO: ask about whether this is needed.
+        if (!use_eqp) // TODO: ask about whether this is needed.
         {
             romop = new RomOperator(&oper, soper, rvdim, rxdim, hdim, smm, w_v0, w_x0,
                                     vx0.GetBlock(0), BV_librom, BX_librom, H_librom, Hsinv, myid,
@@ -1181,7 +1181,7 @@ int main(int argc, char *argv[])
 
         if (online)
         {
-            if (myid == 0 || use_eqp)
+            if (myid == 0)
             {
                 solveTimer.Start();
                 ode_solver->Step(*wMFEM, t, dt_real);
@@ -1767,7 +1767,7 @@ void RomOperator::Mult_Hyperreduced(const Vector &vx, Vector &dvx_dt) const
         }
         else
             HyperelasticNLFIntegrator_ComputeReducedEQP(&(fom->fespace), eqp_rw,
-                                                        eqp_qp, ir_eqp, model,
+                                                        eqp_qp, ir_eqp, model, x0,
                                                         V_x, x_librom, rank, resEQP);
         Vector recv(resEQP);
         MPI_Allreduce(resEQP.GetData(), recv.GetData(), resEQP.Size(), MPI_DOUBLE,
@@ -1825,10 +1825,10 @@ void RomOperator::Mult_Hyperreduced(const Vector &vx, Vector &dvx_dt) const
         S_hat->multPlus(*z_librom, v_librom, 1.0);
         *z_librom += *S_hat_v0;
     }
-
     z.Neg(); // z = -z
     M_hat_inv->mult(*z_librom,
                     dv_dt_librom); // to invert reduced mass matrix operator.
+
 }
 
 void RomOperator::Mult_FullOrder(const Vector &vx, Vector &dvx_dt) const
@@ -1874,7 +1874,6 @@ void RomOperator::Mult_FullOrder(const Vector &vx, Vector &dvx_dt) const
 
 void RomOperator::Mult(const Vector &vx, Vector &dvx_dt) const
 {
-
     if (hyperreduce)
         Mult_Hyperreduced(vx, dvx_dt);
     else
