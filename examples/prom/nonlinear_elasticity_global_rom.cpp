@@ -31,7 +31,6 @@
 //
 // Offline phase:
 //      ./nonlinear_elasticity_global_rom -offline -dt 0.01 -tf 5.0 -s 14 -vs 100 -sc 0.9 -id 0
-//
 //      ./nonlinear_elasticity_global_rom -offline -dt 0.01 -tf 5.0 -s 14 -vs 100 -sc 1.1 -id 1
 //
 // Merge phase:
@@ -128,6 +127,8 @@ private:
     double current_dt;
     bool oversampling;
     CAROM::Matrix *V_v_sp, *V_x_sp;
+    CAROM::Vector *V_xTv_0_sp;
+    CAROM::Matrix *V_xTV_v_sp;
     CAROM::Matrix *V_v_sp_dist;
     CAROM::Vector *psp_librom, *psp_v_librom;
     Vector *psp;
@@ -142,6 +143,9 @@ private:
     mutable Vector z;
     mutable Vector z_x;
     mutable Vector z_v;
+
+    CAROM::Vector *v0_fom_librom, *v0_librom, *V_xTv_0;
+    CAROM::Matrix *V_xTV_v;
 
     bool hyperreduce;
     bool x_base_only;
@@ -936,19 +940,19 @@ int main(int argc, char *argv[])
                              nsamp_H);
             }
             else if (use_qdeim)
-        {
-            if (myid == 0)
-                printf("Using QDEIM sampling\n");
-            CAROM::QDEIM(H_librom,
-                         hdim,
-                         sample_dofs,
-                         num_sample_dofs_per_proc,
-                         *Hsinv,
-                         myid,
-                         num_procs,
-                         nsamp_H);
-        }
-        else if (nsamp_H != hdim)
+            {
+                if (myid == 0)
+                    printf("Using QDEIM sampling\n");
+                CAROM::QDEIM(H_librom,
+                             hdim,
+                             sample_dofs,
+                             num_sample_dofs_per_proc,
+                             *Hsinv,
+                             myid,
+                             num_procs,
+                             nsamp_H);
+            }
+            else if (nsamp_H != hdim)
             {
                 if (myid == 0)
                     printf("Using GNAT sampling\n");
@@ -960,7 +964,6 @@ int main(int argc, char *argv[])
                             myid,
                             num_procs,
                             nsamp_H);
-                            
             }
             else
             {
@@ -1117,7 +1120,7 @@ int main(int argc, char *argv[])
         {
             if (!use_eqp)
             {
-                
+
                 // Define operator in sample space
                 soper = new HyperelasticOperator(*sp_XV_space, ess_tdof_list_sp, visc, mu, K);
             }
@@ -1687,6 +1690,12 @@ RomOperator::RomOperator(HyperelasticOperator *fom_,
             z_v_librom = new CAROM::Vector(z_v.GetData(), z_v.Size(), false, false);
             z_x_librom = new CAROM::Vector(z_x.GetData(), z_x.Size(), false, false);
 
+            v0_librom = new CAROM::Vector(v0->GetData(), v0->Size(), false, false);
+            V_xTV_v_sp = new CAROM::Matrix(rxdim, rvdim, false);
+            V_xTv_0_sp = new CAROM::Vector(spdim / 2, false);
+            V_x_sp->transposeMult(*V_v_sp, *V_xTV_v_sp);
+            V_x_sp->transposeMult(*v0_librom, V_xTv_0_sp);
+
             // This is for saving the recreated predictions
             psp_librom = new CAROM::Vector(spdim, false);
             psp = new Vector(&((*psp_librom)(0)), spdim);
@@ -1717,12 +1726,17 @@ RomOperator::RomOperator(HyperelasticOperator *fom_,
         zfom_x_librom = new CAROM::Vector(zfom_x->GetData(), zfom_x->Size(), true,
                                           false);
 
-        pfom_v_librom = new CAROM::Vector(pfom_v->GetData(), pfom_v->Size(), true,
+        pfom_v_librom = new CAROM::Vector(pfom_v->GetData(), pfom_v->Size(), false,
                                           false);
 
         // Auxiliary vectors
         z_v.SetSize(fdim / 2);
         z_v_librom = new CAROM::Vector(z_v.GetData(), z_v.Size(), true, false);
+        v0_fom_librom = new CAROM::Vector(v0_fom.GetData(), v0_fom.Size(), true, false);
+        V_xTV_v = new CAROM::Matrix(rxdim, rvdim, false);
+        V_xTv_0 = new CAROM::Vector(fdim / 2, false);
+        V_x.transposeMult(V_v, V_xTV_v);
+        V_x.transposeMult(*v0_fom_librom, V_xTv_0);
     }
 
     if (!hyperreduce)
@@ -1782,13 +1796,16 @@ void RomOperator::Mult_Hyperreduced(const Vector &vx, Vector &dvx_dt) const
 
     if (eqp)
     { // Lift v-vector and save
-        V_v.mult(v_librom, *z_v_librom);
-        add(z_v, *v0, *pfom_v);
-        V_x.transposeMult(*pfom_v_librom, dx_dt_librom);
+        // V_v.mult(v_librom, *z_v_librom);
+        // add(z_v, *v0, *pfom_v);
+        // V_x.transposeMult(*pfom_v_librom, dx_dt_librom);
+
+        V_xTV_v->mult(v_librom, *pfom_v_librom);
+        pfom_v_librom->plus(*V_xTv_0, dx_dt_librom);
         Vector resEQP;
         if (fastIntegration)
         {
-            HyperelasticNLFIntegrator_ComputeReducedEQP_Fast(&(fom->fespace),eqp_rw,
+            HyperelasticNLFIntegrator_ComputeReducedEQP_Fast(&(fom->fespace), eqp_rw,
                                                              eqp_qp, ir_eqp, model,
                                                              x0, V_x, V_v, x_librom,
                                                              eqp_coef, eqp_DS_coef, rank, resEQP);
@@ -1814,14 +1831,20 @@ void RomOperator::Mult_Hyperreduced(const Vector &vx, Vector &dvx_dt) const
             z[i] += resEQP[i];
     }
     else
-    { 
+    {
         // Lift x- and v-vector
         // I.e. perform v = v0 + V_v v^, where v^ is the input
-        V_v_sp->mult(v_librom, *z_v_librom);
+        V_xTV_v_sp->mult(v_librom, *z_v_librom);
+        z_v_librom->plus(*V_xTv_0_sp, dx_dt_librom);
+
+        // store dx_dt
+        //V_v_sp->mult(v_librom, *z_v_librom);
+        //add(z_v, *v0, *psp_v);
+        //V_x_sp->transposeMult(*psp_v_librom, dx_dt_librom);
+
         V_x_sp->mult(x_librom, *z_x_librom);
 
         // Store liftings
-        add(z_v, *v0, *psp_v);
         add(z_x, *x0, *psp_x);
 
         // Hyperreduce H
@@ -1843,9 +1866,6 @@ void RomOperator::Mult_Hyperreduced(const Vector &vx, Vector &dvx_dt) const
 
         // Multiply by V_v^T * U_H
         V_vTU_H.mult(zX, z_librom);
-
-        // store dx_dt
-        V_x_sp->transposeMult(*psp_v_librom, dx_dt_librom);
     }
 
     if (fomSp->viscosity != 0.0)
@@ -1875,11 +1895,17 @@ void RomOperator::Mult_FullOrder(const Vector &vx, Vector &dvx_dt) const
 
     // Lift the x-, and v-vectors
     // I.e. perform v = v0 + V_v v^, where v^ is the input
+
+    //V_v.mult(v_librom, *z_v_librom);
+    //add(z_v, *v0, *pfom_v);
+    //V_x.transposeMult(*pfom_v_librom, dx_dt_librom);
+
+    V_xTV_v->mult(v_librom, *pfom_v_librom);
+    pfom_v_librom->plus(*V_xTv_0, dx_dt_librom);
+
     V_x.mult(x_librom, *z_x_librom);
-    V_v.mult(v_librom, *z_v_librom);
 
     add(z_x, *x0, *pfom_x); // Store liftings
-    add(z_v, *v0, *pfom_v);
 
     // Apply H to x to get z
     fom->H->Mult(*pfom_x, *zfom_x);
@@ -1897,7 +1923,7 @@ void RomOperator::Mult_FullOrder(const Vector &vx, Vector &dvx_dt) const
     M_hat_inv->mult(*z_librom,
                     dv_dt_librom); // to invert reduced mass matrix operator.
 
-    V_x.transposeMult(*pfom_v_librom, dx_dt_librom);
+    
 }
 
 void RomOperator::Mult(const Vector &vx, Vector &dvx_dt) const
