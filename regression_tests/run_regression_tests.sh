@@ -1,9 +1,9 @@
 #!/bin/bash
 # If using sbatch, set the following flags
-#SBATCH -N 1
+#SBATCH -N 1 -n 4
 #SBATCH -t 1:00:00
-#SBATCH -p pbatch
-#SBATCH -o sbatch.log
+#SBATCH -p pdebug
+#SBATCH -o regression_tests_summary.log
 #SBATCH --open-mode truncate
 # On Linux:
 # sbatch ./regression_tests/run_regression_tests.sh

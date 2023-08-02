@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- * Copyright (c) 2013-2022, Lawrence Livermore National Security, LLC
+ * Copyright (c) 2013-2023, Lawrence Livermore National Security, LLC
  * and other libROM project developers. See the top-level COPYRIGHT
  * file for details.
  *
@@ -947,6 +947,18 @@ public:
     orthogonalize();
 
     /**
+     * @brief Rescale every matrix row by its maximum absolute value.
+     */
+    void
+    rescale_rows_max();
+
+    /**
+     * @brief Rescale every matrix column by its maximum absolute value.
+     */
+    void
+    rescale_cols_max();
+
+    /**
      * @brief Const Matrix member access. Matrix data is stored in
      * row-major format.
      *
@@ -1062,6 +1074,27 @@ public:
     {
         return d_mat;
     }
+
+    /**
+     * @brief Distribute this matrix rows among MPI processes,
+     * based on the specified local number of rows.
+     * This becomes distributed after this function is executed.
+     *
+     * @pre !distributed()
+     * @pre d_owns_data
+     *
+     * @param[in] local_num_rows number of rows for local MPI rank.
+     */
+    void distribute(const int &local_num_rows);
+
+    /**
+     * @brief Gather all the distributed rows among MPI processes.
+     * This becomes not distributed after this function is executed.
+     *
+     * @pre distributed()
+     * @pre d_owns_data
+     */
+    void gather();
 
 private:
     /**
@@ -1214,6 +1247,11 @@ private:
      * @brief The number of processors being run on.
      */
     int d_num_procs;
+
+    /**
+     * @brief The current MPI rank. If MPI is not initialized, equal to 0.
+     */
+    int d_rank;
 
     /**
      * @brief If true, this object owns its underlying data, d_mat, and
