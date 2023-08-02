@@ -225,15 +225,6 @@ if (ENABLE_EXAMPLES)
     random_test
     smoke_static
     load_samples)
-#<<<<<<< HEAD
-
-#  set(regression_test_names
-#    basisComparator
-#    checkError
-#    computeSpeedup
-#    solutionComparator
-#    fileComparator)
-#=======
     
   if (USE_MFEM)
     set(regression_test_names
@@ -244,7 +235,6 @@ if (ENABLE_EXAMPLES)
       fileComparator)
   endif()
 
-#>>>>>>> origin/master
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests)
 
   foreach(name IN LISTS unit_test_names)
@@ -252,8 +242,6 @@ if (ENABLE_EXAMPLES)
     target_link_libraries(${name}
       PRIVATE ROM ${MPI_C_LINK_FLAGS} ${MPI_C_LIBRARIES} MPI::MPI_C ${MPI_FORTRAN_LINK_FLAGS} ${MPI_FORTRAN_LIBRARIES} MPI::MPI_Fortran)
     target_include_directories(${name}
-#<<<<<<< HEAD
-#=======
       PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
       ${MPI_C_INCLUDE_DIRS})
     target_compile_features(${name} PRIVATE cxx_std_11)
@@ -271,44 +259,6 @@ if (ENABLE_EXAMPLES)
     endforeach(name) # IN LISTS regression_test_names
   endif()
 endif(ENABLE_EXAMPLES)
-
-
-#if(GTEST_FOUND)
-#  set(unit_test_stems
-#    Vector
-#    Matrix
-#    DEIM
-#    DMD
-#    GNAT
-#    QDEIM
-#    S_OPT
-#    SVD
-#    StaticSVD
-#    RandomizedSVD
-#    IncrementalSVD
-#    IncrementalSVDBrand
-#    GreedyCustomSampler)
-#  foreach(stem IN LISTS unit_test_stems)
-#    add_executable(test_${stem} unit_tests/test_${stem}.cpp)
-#    target_link_libraries(test_${stem} PRIVATE ROM
-#      ${MPI_C_LINK_FLAGS} ${MPI_C_LIBRARIES} MPI::MPI_C ${MPI_FORTRAN_LINK_FLAGS} ${MPI_FORTRAN_LIBRARIES} MPI::MPI_Fortran GTest::GTest)
-#    target_include_directories(test_${stem}
-#>>>>>>> origin/master
-#      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-#      ${MPI_C_INCLUDE_DIRS})
-#    target_compile_features(${name} PRIVATE cxx_std_11)
-#  endforeach(name) # IN LISTS unit_test_names
-
-#  foreach(name IN LISTS regression_test_names)
-#    add_executable(${name} regression_tests/${name}.cpp)
-#    target_link_libraries(${name}
-#      PRIVATE ROM ${MPI_C_LINK_FLAGS} ${MPI_C_LIBRARIES} MPI::MPI_C ${MPI_FORTRAN_LINK_FLAGS} ${MPI_FORTRAN_LIBRARIES} MPI::MPI_Fortran)
-#    target_include_directories(${name}
-#      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
-#      ${MPI_C_INCLUDE_DIRS})
-#    target_compile_features(${name} PRIVATE cxx_std_11)
-#  endforeach(name) # IN LISTS regression_test_names
-#endif(ENABLE_EXAMPLES)
 
 if(ENABLE_TESTING)
   if(GTEST_FOUND)
@@ -363,7 +313,7 @@ endif(DOXYGEN_FOUND)
 
 #-------------------------------------------------------------------------------
 # Installation
-# Configure CMake find_package() config files 
+# Configure CMake find_package() config files
 #-------------------------------------------------------------------------------
 
 # Default option
